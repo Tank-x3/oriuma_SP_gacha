@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オリウマサポートカードガチャ</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="data.js" defer></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <header>
+        <h1>オリウマ サポカガチャ</h1>
+        <div id="user-stats">
+            累計: <span id="total-pulls">0</span>回
+        </div>
+    </header>
+
+    <main>
+        <section id="home-screen" class="screen active">
+            <div class="banner-area">
+                <h2>ピックアップガチャ開催中!</h2>
+                <p>個性豊かなオリウマたちに出会おう！</p>
+                <div class="pickup-img-placeholder">
+                    PICK UP IMAGE
+                </div>
+            </div>
+            
+            <div class="action-area">
+                <button id="btn-draw-10" class="btn-primary">10連ガチャを引く！<br><span class="sub-text">(Free)</span></button>
+            </div>
+
+            <div class="menu-area">
+                <button id="btn-compendium" class="btn-secondary">名鑑 (Compendium)</button>
+                <button id="btn-options" class="btn-secondary">データ管理</button>
+            </div>
+        </section>
+
+        <section id="gacha-screen" class="screen">
+            <div id="gacha-cover" class="gacha-phase">
+                <div class="book-cover">
+                    <div class="cover-text">TAP TO OPEN</div>
+                </div>
+            </div>
+
+            <div id="gacha-deck-view" class="gacha-phase" style="display:none;">
+                <div class="deck-container" id="deck-container">
+                    </div>
+                <p class="instruction-text">タップしてカードを確認</p>
+            </div>
+
+            <div id="gacha-single-view" class="gacha-phase" style="display:none;">
+                <div class="single-card-wrapper" id="single-card-wrapper">
+                    </div>
+                <div class="gacha-controls">
+                    <button id="btn-next-card" class="btn-text">次へ &gt;</button>
+                    <button id="btn-skip" class="btn-text">スキップして結果を見る</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="result-screen" class="screen">
+            <h2>ガチャ結果</h2>
+            <div class="result-grid" id="result-grid">
+                </div>
+            <div class="action-area">
+                <button id="btn-retry" class="btn-primary">もう一度10連を引く</button>
+                <button id="btn-home-from-result" class="btn-secondary">ホームへ戻る</button>
+            </div>
+        </section>
+
+        <section id="compendium-screen" class="screen">
+            <h2>キャラクター名鑑</h2>
+            <div id="compendium-stats">
+                コンプリート率: <span id="comp-rate">0%</span> (<span id="comp-count">0</span>/<span id="total-types">0</span>)
+            </div>
+            <div class="compendium-grid" id="compendium-grid">
+                </div>
+            <button id="btn-home-from-compendium" class="btn-secondary">戻る</button>
+        </section>
+
+        <section id="options-screen" class="screen">
+            <h2>データ管理</h2>
+            <p>機種変更時などにデータを引き継げます。</p>
+            
+            <div class="data-box">
+                <h3>データのエクスポート</h3>
+                <textarea id="export-area" readonly></textarea>
+                <button id="btn-copy" class="btn-small">クリップボードにコピー</button>
+            </div>
+
+            <div class="data-box">
+                <h3>データのインポート</h3>
+                <textarea id="import-area" placeholder="ここにデータを貼り付け"></textarea>
+                <button id="btn-import" class="btn-small">データを読み込む</button>
+                <button id="btn-clear" class="btn-small btn-danger">データをリセット</button>
+            </div>
+            
+            <button id="btn-home-from-options" class="btn-secondary">戻る</button>
+        </section>
+
+    </main>
+
+    <div id="card-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div class="modal-header">
+                <span id="modal-rarity" class="badge">SSR</span>
+                <span id="modal-type">スピード</span>
+            </div>
+            <h3 id="modal-title">[タイトル]</h3>
+            <h2 id="modal-name">キャラクター名</h2>
+            <div class="modal-img-placeholder">IMAGE</div>
+            <p id="modal-text" class="flavor-text">テキスト...</p>
+            <div class="modal-footer">
+                獲得数: <span id="modal-count">0</span>枚
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
