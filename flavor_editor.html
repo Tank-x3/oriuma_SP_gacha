@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>セリフデータ編集ツール (Ver 1.1)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f4f8; }
+        h1 { margin-bottom: 20px; }
+        .container { display: flex; gap: 20px; flex-direction: column; }
+        .row { display: flex; gap: 20px; }
+        
+        .import-box { background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #90caf9; }
+        .editor-col { flex: 1; background: white; padding: 20px; border-radius: 8px; }
+        .output-col { flex: 1; display: flex; flex-direction: column; background: white; padding: 20px; border-radius: 8px; }
+        
+        .section { margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .item-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        input[type="text"] { flex: 1; padding: 5px; }
+        button { cursor: pointer; padding: 5px 10px; }
+        
+        .btn-add { background: #4caf50; color: white; border: none; border-radius: 4px; padding: 8px 16px; }
+        .btn-del { background: #f44336; color: white; border: none; border-radius: 4px; }
+        .btn-load { background: #ff9800; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-weight: bold; }
+        .btn-gen { padding: 15px; font-weight: bold; background: #2196f3; color: white; border: none; border-radius: 8px; margin-bottom: 10px; width: 100%; cursor: pointer; }
+        
+        textarea { width: 100%; font-family: monospace; border: 1px solid #ccc; border-radius: 4px; padding: 10px; }
+        #import-area { height: 100px; margin-bottom: 10px; }
+        #output-area { height: 300px; }
+
+        h3 { margin-top: 0; margin-bottom: 10px; font-size: 1rem; color: #555; }
+        .cutin-box { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 4px; background: #fafafa; }
+    </style>
+</head>
+<body>
+    <h1>オリウマガチャ セリフ編集ツール (Ver 1.1)</h1>
+
+    <div class="import-box">
+        <h3 style="margin-top:0;">📂 既存データの読み込み</h3>
+        <p style="font-size:0.9rem; margin-bottom:10px;">現在の <code>flavor_data.js</code> の中身をすべてコピーして、ここに貼り付けて「読み込む」を押してください。</p>
+        <textarea id="import-area" placeholder="// flavor_data.js のコードをここに貼り付け..."></textarea>
+        <button class="btn-load" onclick="loadCode()">データを読み込んで編集に反映</button>
+    </div>
+
+    <div class="row">
+        <div class="editor-col">
+            <div class="section" id="flavor-section">
+                <h2>期待度別セリフ (FLAVOR_TEXTS)</h2>
+                </div>
+            
+            <div class="section" id="cutin-section">
+                <h2>カットイン定義 (SPECIAL_CUTINS)</h2>
+                <div id="cutin-list"></div>
+                <button class="btn-add" onclick="addCutin()">＋ 新規カットイン追加</button>
+            </div>
+        </div>
+
+        <div class="output-col">
+            <h2>💾 保存用コード生成</h2>
+            <p style="font-size:0.9rem;">編集が終わったらコードを生成し、<code>flavor_data.js</code> に上書きしてください。</p>
+            <button class="btn-gen" onclick="generateCode()">コード生成</button>
+            <textarea id="output-area" readonly placeholder="ここに生成されたコードが表示されます。"></textarea>
+            <button onclick="copyCode()" style="margin-top:10px; padding:10px;">クリップボードにコピー</button>
+        </div>
+    </div>
+
+    <script>
+        // --- データ保持用変数 ---
+        let flavorData = {
+            R: ["TAP TO OPEN"],
+            SR: ["おっ、これは…？"],
+            SSR: ["激アツです！！"]
+        };
+        
+        let cutinData = [
+            { id: "example_id", charName: "キャラ名", text: "サンプルセリフ", image: "" }
+        ];
+
+        // --- 読み込み処理 (Import) ---
+        function loadCode() {
+            const code = document.getElementById('import-area').value;
+            if (!code.trim()) {
+                alert("コードを貼り付けてください。");
+                return;
+            }
+
+            try {
+                // 正規表現でオブジェクト部分を抽出
+                // const FLAVOR_TEXTS = { ... }; の形式を想定
+                
+                // 1. FLAVOR_TEXTS の抽出
+                const flavorMatch = code.match(/const FLAVOR_TEXTS = (\{[\s\S]*?\});/);
+                if (flavorMatch && flavorMatch[1]) {
+                    // JSON.parseではなく、new Functionを使ってJSオブジェクトとして評価する
+                    // これによりコメントやクォート無しキーも許容される
+                    flavorData = new Function("return " + flavorMatch[1])();
+                } else {
+                    console.warn("FLAVOR_TEXTSが見つかりませんでした。");
+                }
+
+                // 2. SPECIAL_CUTINS の抽出
+                const cutinMatch = code.match(/const SPECIAL_CUTINS = (\{[\s\S]*?\});/);
+                if (cutinMatch && cutinMatch[1]) {
+                    const rawObj = new Function("return " + cutinMatch[1])();
+                    
+                    // オブジェクト形式から配列形式(エディタ用)に変換
+                    cutinData = Object.keys(rawObj).map(key => {
+                        return {
+                            id: key,
+                            charName: rawObj[key].charName,
+                            text: rawObj[key].text,
+                            image: rawObj[key].image
+                        };
+                    });
+                } else {
+                    console.warn("SPECIAL_CUTINSが見つかりませんでした。");
+                }
+
+                // 画面再描画
+                renderFlavor();
+                renderCutin();
+                alert("読み込み完了！\n現在のデータがフォームに反映されました。");
+
+            } catch (e) {
+                console.error(e);
+                alert("読み込みに失敗しました。\n\n【原因の可能性】\n・コードの貼り付け範囲が間違っている\n・文法エラーが含まれている\n\nコンソールログ(F12)で詳細を確認できます。");
+            }
+        }
+
+        // --- 描画処理 ---
+        function renderFlavor() {
+            const container = document.getElementById('flavor-section');
+            container.innerHTML = '<h2>期待度別セリフ</h2>';
+            
+            // データ内に存在するキーを描画（R, SR, SSR以外もあれば表示）
+            Object.keys(flavorData).forEach(rarity => {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `<h3>${rarity}</h3>`;
+                const list = document.createElement('div');
+                
+                if (!Array.isArray(flavorData[rarity])) flavorData[rarity] = [];
+
+                flavorData[rarity].forEach((text, idx) => {
+                    const row = document.createElement('div');
+                    row.className = 'item-row';
+                    row.innerHTML = `
+                        <input type="text" value="${text}" oninput="updateFlavor('${rarity}', ${idx}, this.value)">
+                        <button class="btn-del" onclick="delFlavor('${rarity}', ${idx})">削除</button>
+                    `;
+                    list.appendChild(row);
+                });
+                
+                const addBtn = document.createElement('button');
+                addBtn.className = 'btn-add';
+                addBtn.style.fontSize = "0.8rem";
+                addBtn.style.marginTop = "5px";
+                addBtn.innerText = '＋ 追加';
+                addBtn.onclick = () => addFlavor(rarity);
+                
+                wrapper.appendChild(list);
+                wrapper.appendChild(addBtn);
+                container.appendChild(wrapper);
+            });
+        }
+
+        function renderCutin() {
+            const container = document.getElementById('cutin-list');
+            container.innerHTML = '';
+            
+            cutinData.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'cutin-box';
+                div.innerHTML = `
+                    <div class="item-row" style="font-weight:bold; color:#555;">カットイン #${idx + 1}</div>
+                    <div class="item-row"><span>ID (specialEffect):</span> <input type="text" value="${item.id}" oninput="updateCutin(${idx}, 'id', this.value)"></div>
+                    <div class="item-row"><span>キャラ名:</span> <input type="text" value="${item.charName}" oninput="updateCutin(${idx}, 'charName', this.value)"></div>
+                    <div class="item-row"><span>セリフ:</span> <input type="text" value="${item.text}" oninput="updateCutin(${idx}, 'text', this.value)"></div>
+                    <div class="item-row"><span>画像パス:</span> <input type="text" value="${item.image}" oninput="updateCutin(${idx}, 'image', this.value)"></div>
+                    <div style="text-align:right;"><button class="btn-del" onclick="delCutin(${idx})">このカットインを削除</button></div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- 操作系 ---
+        function updateFlavor(rarity, idx, val) { flavorData[rarity][idx] = val; }
+        function addFlavor(rarity) { flavorData[rarity].push(""); renderFlavor(); }
+        function delFlavor(rarity, idx) { flavorData[rarity].splice(idx, 1); renderFlavor(); }
+
+        function updateCutin(idx, field, val) { cutinData[idx][field] = val; }
+        function addCutin() {
+            cutinData.push({ id: "new_id", charName: "キャラ名", text: "セリフ", image: "" });
+            renderCutin();
+        }
+        function delCutin(idx) { cutinData.splice(idx, 1); renderCutin(); }
+
+        // --- コード生成 ---
+        function generateCode() {
+            // カットイン配列をオブジェクト形式(IDキー)に変換
+            let cutinObj = {};
+            cutinData.forEach(item => {
+                const key = item.id || `unknown_${Math.random().toString(36).slice(2)}`;
+                cutinObj[key] = {
+                    charName: item.charName,
+                    text: item.text,
+                    image: item.image
+                };
+            });
+
+            // 出力時はJSON形式で綺麗に整形する（次回以降の読み込みも安全）
+            const code = `// flavor_data.js
+// テキスト、セリフ、カットイン定義
+
+// 期待度別 表紙セリフ
+const FLAVOR_TEXTS = ${JSON.stringify(flavorData, null, 4)};
+
+// 特殊カットイン定義
+// key: data.js の specialEffect ID と一致させる
+const SPECIAL_CUTINS = ${JSON.stringify(cutinObj, null, 4)};
+`;
+            document.getElementById('output-area').value = code;
+        }
+
+        function copyCode() {
+            const el = document.getElementById('output-area');
+            el.select();
+            document.execCommand('copy');
+            alert("コピーしました！\nflavor_data.js に上書きしてください。");
+        }
+
+        // 初期描画
+        renderFlavor();
+        renderCutin();
+    </script>
+</body>
+</html>

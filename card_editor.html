@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>カードデータ編集ツール (Ver 2.0)</title>
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; background: #f0f4f8; color: #333; }
+        h1 { margin-bottom: 20px; text-align: center; }
+        
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .box { background: white; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        /* 読み込みエリア */
+        .import-area { display: flex; gap: 20px; }
+        .import-col { flex: 1; }
+        textarea.code-input { width: 100%; height: 100px; font-family: monospace; border: 1px solid #ddd; border-radius: 4px; padding: 5px; }
+        .btn-load { width: 100%; padding: 8px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        /* メイン編集エリア */
+        .board { display: flex; gap: 15px; align-items: flex-start; }
+        .rarity-col { flex: 1; background: #fff; border-radius: 8px; border: 2px solid #ddd; padding: 10px; min-height: 200px; }
+        
+        .col-SSR { border-color: #ff4081; background: #fff0f5; }
+        .col-SR  { border-color: #ffd700; background: #fffff0; }
+        .col-R   { border-color: #b0c4de; background: #f0f8ff; }
+        
+        .col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; padding-bottom: 5px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .btn-add { background: #4caf50; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 0.8rem; }
+
+        .card-item { background: white; padding: 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: relative; }
+        .card-id-badge { position: absolute; top: 5px; right: 5px; font-size: 0.7rem; color: #999; font-family: monospace; }
+        .card-title { font-size: 0.8rem; color: #666; margin-bottom: 2px; }
+        .card-name { font-weight: bold; font-size: 1rem; margin-bottom: 5px; }
+        .card-meta { font-size: 0.75rem; color: #888; display: flex; gap: 5px; flex-wrap: wrap; }
+        .tag { padding: 2px 6px; border-radius: 4px; background: #eee; }
+        
+        .card-actions { margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end; }
+        .btn-edit { background: #2196f3; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .btn-del { background: #f44336; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+
+        /* モーダル */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-body { background: white; padding: 25px; border-radius: 8px; width: 500px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn-save { background: #2196f3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-cancel { background: #ccc; color: #333; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+
+        .output-area textarea { width: 100%; height: 200px; font-family: monospace; border: 1px solid #ccc; border-radius: 4px; padding: 10px; }
+        .btn-gen { width: 100%; padding: 15px; background: #673ab7; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1.1rem; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>カードデータ編集ツール (自動連番機能付き)</h1>
+
+    <div class="container">
+        <div class="box import-area">
+            <div class="import-col">
+                <label>① <code>data.js</code> (必須)</label>
+                <textarea id="import-data" class="code-input" placeholder="// data.js の中身を貼り付け..."></textarea>
+            </div>
+            <div class="import-col">
+                <label>② <code>flavor_data.js</code> (任意)</label>
+                <textarea id="import-flavor" class="code-input" placeholder="// flavor_data.js の中身を貼り付け..."></textarea>
+            </div>
+            <div style="display:flex; align-items:end;">
+                <button class="btn-load" onclick="loadAllData()">読み込み開始</button>
+            </div>
+        </div>
+
+        <div class="board">
+            <div class="rarity-col col-SSR" id="col-SSR">
+                <div class="col-header"><span>SSR</span><button class="btn-add" onclick="openModal('add', 'SSR')">＋ 追加</button></div>
+                <div class="card-list" id="list-SSR"></div>
+            </div>
+            <div class="rarity-col col-SR" id="col-SR">
+                <div class="col-header"><span>SR</span><button class="btn-add" onclick="openModal('add', 'SR')">＋ 追加</button></div>
+                <div class="card-list" id="list-SR"></div>
+            </div>
+            <div class="rarity-col col-R" id="col-R">
+                <div class="col-header"><span>R</span><button class="btn-add" onclick="openModal('add', 'R')">＋ 追加</button></div>
+                <div class="card-list" id="list-R"></div>
+            </div>
+        </div>
+
+        <div class="box output-area">
+            <h2>💾 コード生成</h2>
+            <p style="font-size:0.9rem; color:#666; margin-bottom:10px;">
+                ※生成時に全データのIDを「ssr_001」「sr_001」のように連番で振り直します。
+            </p>
+            <button class="btn-gen" onclick="generateCode()">data.js のコードを生成（ID自動採番）</button>
+            <textarea id="output-code" readonly placeholder="生成されたコードがここに表示されます。"></textarea>
+            <button class="btn-load" style="background:#ccc; color:#333; margin-top:5px;" onclick="copyCode()">クリップボードにコピー</button>
+        </div>
+    </div>
+
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal-body">
+            <h2 id="modal-title">カード編集</h2>
+            <div class="form-group">
+                <label>レアリティ</label>
+                <select id="inp-rarity">
+                    <option value="SSR">SSR</option>
+                    <option value="SR">SR</option>
+                    <option value="R">R</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>タイプ</label>
+                <select id="inp-type"></select>
+            </div>
+            <div class="form-group">
+                <label>タイトル</label>
+                <input type="text" id="inp-title">
+            </div>
+            <div class="form-group">
+                <label>キャラクター名</label>
+                <input type="text" id="inp-name">
+            </div>
+            <div class="form-group">
+                <label>フレーバーテキスト</label>
+                <textarea id="inp-text" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>画像ファイルパス (任意)</label>
+                <input type="text" id="inp-image">
+            </div>
+            <div class="form-group">
+                <label>特殊演出ID</label>
+                <input type="text" id="inp-effect" list="effect-list">
+                <datalist id="effect-list"></datalist>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-save" onclick="saveCard()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cardList = [];
+        let flavorEffects = [];
+        
+        let TYPES = {
+            SPEED:   { id: "speed",   name: "スピード", icon: "⚡" },
+            STAMINA: { id: "stamina", name: "スタミナ", icon: "❤️" },
+            POWER:   { id: "power",   name: "パワー",   icon: "💪" },
+            GUTS:    { id: "guts",    name: "根性",     icon: "🔥" },
+            WISDOM:  { id: "wisdom",  name: "賢さ",     icon: "🎓" },
+            FRIEND:  { id: "friend",  name: "友人",     icon: "🧢" },
+            GROUP:   { id: "group",   name: "グループ", icon: "🤝" }
+        };
+
+        window.onload = () => {
+            initTypeSelect();
+            renderAll();
+        };
+
+        function initTypeSelect() {
+            const select = document.getElementById('inp-type');
+            select.innerHTML = '';
+            for (const key in TYPES) {
+                const opt = document.createElement('option');
+                opt.value = key; 
+                opt.innerText = `${TYPES[key].icon} ${TYPES[key].name}`;
+                select.appendChild(opt);
+            }
+        }
+
+        function loadAllData() {
+            const dataCode = document.getElementById('import-data').value;
+            const flavorCode = document.getElementById('import-flavor').value;
+
+            if (!dataCode.trim()) { alert("data.js のコードを貼り付けてください。"); return; }
+
+            try {
+                const cardMatch = dataCode.match(/const CARD_DATA = (\[[\s\S]*?\]);/);
+                if (cardMatch) {
+                    cardList = new Function("return " + cardMatch[1])();
+                } else {
+                    alert("CARD_DATA が見つかりませんでした。");
+                    return;
+                }
+
+                if (flavorCode.trim()) {
+                    const cutinMatch = flavorCode.match(/const SPECIAL_CUTINS = (\{[\s\S]*?\});/);
+                    if (cutinMatch) {
+                        const cutins = new Function("return " + cutinMatch[1])();
+                        flavorEffects = Object.keys(cutins);
+                        updateEffectList();
+                    }
+                }
+                renderAll();
+                alert("読み込み完了！");
+            } catch (e) { console.error(e); alert("読み込みエラー。"); }
+        }
+
+        function updateEffectList() {
+            const list = document.getElementById('effect-list');
+            list.innerHTML = '';
+            flavorEffects.forEach(id => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                list.appendChild(opt);
+            });
+        }
+
+        function renderAll() {
+            renderColumn('SSR');
+            renderColumn('SR');
+            renderColumn('R');
+        }
+
+        function renderColumn(rarity) {
+            const container = document.getElementById(`list-${rarity}`);
+            container.innerHTML = '';
+            const filtered = cardList.filter(c => c.rarity === rarity);
+            
+            filtered.forEach((card) => {
+                const originalIndex = cardList.indexOf(card);
+                const typeKey = Object.keys(TYPES).find(k => TYPES[k].id === card.type) || card.type;
+                const typeInfo = TYPES[typeKey] || { icon: "?" };
+
+                const el = document.createElement('div');
+                el.className = 'card-item';
+                el.innerHTML = `
+                    <div class="card-id-badge">${card.id || 'new'}</div>
+                    <div class="card-title">${card.title || ''}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-meta">
+                        <span class="tag">${typeInfo.icon}</span>
+                        ${card.specialEffect ? `<span class="tag" style="background:#e3f2fd; color:#1565c0;">★演出: ${card.specialEffect}</span>` : ''}
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-edit" onclick="openModal('edit', ${originalIndex})">編集</button>
+                        <button class="btn-del" onclick="deleteCard(${originalIndex})">削除</button>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        let currentEditIndex = -1; 
+
+        function openModal(mode, arg) {
+            const overlay = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            
+            document.getElementById('inp-title').value = "";
+            document.getElementById('inp-name').value = "";
+            document.getElementById('inp-text').value = "";
+            document.getElementById('inp-image').value = "";
+            document.getElementById('inp-effect').value = "";
+
+            if (mode === 'add') {
+                currentEditIndex = -1;
+                title.innerText = `新規カード追加 (${arg})`;
+                document.getElementById('inp-rarity').value = arg;
+            } else {
+                currentEditIndex = arg;
+                const card = cardList[arg];
+                title.innerText = "カード編集";
+                document.getElementById('inp-rarity').value = card.rarity;
+                
+                let typeKey = card.type;
+                const foundKey = Object.keys(TYPES).find(k => TYPES[k].id === card.type || k === card.type);
+                if (foundKey) typeKey = foundKey;
+                
+                document.getElementById('inp-type').value = typeKey;
+                document.getElementById('inp-title').value = card.title;
+                document.getElementById('inp-name').value = card.name;
+                document.getElementById('inp-text').value = card.text;
+                document.getElementById('inp-image').value = card.image || "";
+                document.getElementById('inp-effect').value = card.specialEffect || "";
+            }
+            overlay.style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+        function saveCard() {
+            const rarity = document.getElementById('inp-rarity').value;
+            const typeVal = document.getElementById('inp-type').value;
+            const newCard = {
+                id: (currentEditIndex !== -1) ? cardList[currentEditIndex].id : "", // IDは生成時に振り直すので仮
+                rarity: rarity,
+                type: typeVal,
+                title: document.getElementById('inp-title').value,
+                name: document.getElementById('inp-name').value,
+                text: document.getElementById('inp-text').value,
+                image: document.getElementById('inp-image').value || null,
+                specialEffect: document.getElementById('inp-effect').value || null
+            };
+
+            if (currentEditIndex === -1) cardList.push(newCard);
+            else cardList[currentEditIndex] = newCard;
+
+            closeModal();
+            renderAll();
+        }
+
+        function deleteCard(idx) {
+            if (confirm("本当に削除しますか？")) {
+                cardList.splice(idx, 1);
+                renderAll();
+            }
+        }
+
+        // --- ID連番振り直し & コード生成 ---
+        function generateCode() {
+            // 1. まずレアリティ順(SSR->SR->R)に並べ替える
+            const rarityOrder = { "SSR": 1, "SR": 2, "R": 3 };
+            
+            cardList.sort((a, b) => {
+                const rA = rarityOrder[a.rarity] || 99;
+                const rB = rarityOrder[b.rarity] || 99;
+                return rA - rB;
+            });
+
+            // 2. IDを連番で振り直す
+            const counters = { "SSR": 1, "SR": 1, "R": 1 };
+            
+            cardList.forEach(card => {
+                const r = card.rarity;
+                if (!counters[r]) counters[r] = 1;
+                
+                // 3桁ゼロ埋め (例: 001)
+                const num = String(counters[r]).padStart(3, '0');
+                // ID形式: ssr_001
+                card.id = `${r.toLowerCase()}_${num}`;
+                
+                counters[r]++;
+            });
+
+            // 画面再描画（新しいIDを表示するため）
+            renderAll();
+
+            // 3. コード生成
+            const json = JSON.stringify(cardList, null, 4);
+            const code = `// data.js
+// オリウマサポートカードガチャ データ定義
+
+const RARITY = {
+    SSR: { id: "SSR", rate: 0.03, color: "#e8b646", text: "SSR" }, 
+    SR:  { id: "SR",  rate: 0.18, color: "#c0c0c0", text: "SR" },
+    R:   { id: "R",   rate: 0.79, color: "#cd7f32", text: "R" }
+};
+
+const TYPES = {
+    SPEED:   { id: "speed",   name: "スピード", icon: "⚡" },
+    STAMINA: { id: "stamina", name: "スタミナ", icon: "❤️" },
+    POWER:   { id: "power",   name: "パワー",   icon: "💪" },
+    GUTS:    { id: "guts",    name: "根性",     icon: "🔥" },
+    WISDOM:  { id: "wisdom",  name: "賢さ",     icon: "🎓" },
+    FRIEND:  { id: "friend",  name: "友人",     icon: "🧢" },
+    GROUP:   { id: "group",   name: "グループ", icon: "🤝" }
+};
+
+// カードリスト (自動採番済み)
+const CARD_DATA = ${json};
+`;
+            document.getElementById('output-code').value = code;
+        }
+
+        function copyCode() {
+            document.getElementById('output-code').select();
+            document.execCommand('copy');
+            alert("コピーしました！ data.js に上書きしてください。");
+        }
+    </script>
+</body>
+</html>
